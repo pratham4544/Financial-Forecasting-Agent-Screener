@@ -10,19 +10,32 @@ import logging
 import json
 from typing import Dict, Any, List, Optional
 
+# Import LangChain components with comprehensive fallback strategy
+AgentExecutor = None
+create_react_agent = None
+initialize_agent = None
+AgentType = None
+
+# Try different import paths for different LangChain versions
 try:
     from langchain.agents import AgentExecutor, create_react_agent
 except ImportError:
     try:
-        # Try alternative import path
-        from langchain.agents import AgentExecutor, initialize_agent
-        from langchain.agents import AgentType
-        create_react_agent = None  # Will use initialize_agent as fallback
+        from langchain.agents.agent import AgentExecutor
+        from langchain.agents import create_react_agent
     except ImportError:
-        # Last resort - import what we can
-        from langchain.agents import AgentExecutor
-        from langchain.agents import initialize_agent, AgentType
-        create_react_agent = None
+        try:
+            from langchain.agents import initialize_agent, AgentType
+            from langchain.agents.agent import AgentExecutor
+            create_react_agent = None
+        except ImportError:
+            try:
+                # Try importing from langchain_core
+                from langchain_core.agents import AgentExecutor
+            except ImportError:
+                # If all else fails, we'll use direct tool execution only
+                logger = logging.getLogger(__name__)
+                logger.warning("Could not import AgentExecutor - will use direct tool execution only")
 
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
@@ -209,6 +222,16 @@ class AgentPipeline:
         """
         logger.info("Running agent-based forecast...")
 
+        # Check if agent functionality is available
+        if AgentExecutor is None:
+            logger.warning("AgentExecutor not available - using direct tool execution")
+            return self._fallback_direct_execution(
+                company_url,
+                company_symbol,
+                quarters,
+                include_market_data
+            )
+
         # Create agent with ReAct prompting
         agent_prompt = self._create_agent_prompt()
 
@@ -228,7 +251,7 @@ class AgentPipeline:
                     handle_parsing_errors=True,
                     max_iterations=10
                 )
-            else:
+            elif initialize_agent is not None and AgentType is not None:
                 # Fallback to initialize_agent for older LangChain versions
                 logger.info("Using initialize_agent (fallback)")
                 agent_executor = initialize_agent(
@@ -239,6 +262,9 @@ class AgentPipeline:
                     handle_parsing_errors=True,
                     max_iterations=10
                 )
+            else:
+                # No agent initialization method available, use direct execution
+                raise ImportError("No suitable agent initialization method available")
 
             # Construct task for agent
             task = self._construct_agent_task(
