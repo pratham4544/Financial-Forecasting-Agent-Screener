@@ -6,9 +6,11 @@ pymysql
 sqlalchemy
 pydantic
 langchain
-openai
-sentence-transformers
+langchain-community
+langchain-core
+langchain-groq
+# sentence-transformers
 faiss-cpu
 pdfminer.six
+PyPDF2
 nse-live-stocks
-python-multipart
