@@ -1,6 +1,6 @@
 """Database and schema models."""
 
-from .database import Base, RequestLog, engine, SessionLocal
+from .database import Base, RequestLog, engine, SessionLocal, get_db, init_db
 from .schemas import (
     ForecastRequest,
     ForecastResponse,
@@ -15,6 +15,8 @@ __all__ = [
     "RequestLog",
     "engine",
     "SessionLocal",
+    "get_db",
+    "init_db",
     "ForecastRequest",
     "ForecastResponse",
     "FinancialMetrics",
