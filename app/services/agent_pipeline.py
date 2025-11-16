@@ -10,7 +10,20 @@ import logging
 import json
 from typing import Dict, Any, List, Optional
 
-from langchain.agents import AgentExecutor, create_react_agent
+try:
+    from langchain.agents import AgentExecutor, create_react_agent
+except ImportError:
+    try:
+        # Try alternative import path
+        from langchain.agents import AgentExecutor, initialize_agent
+        from langchain.agents import AgentType
+        create_react_agent = None  # Will use initialize_agent as fallback
+    except ImportError:
+        # Last resort - import what we can
+        from langchain.agents import AgentExecutor
+        from langchain.agents import initialize_agent, AgentType
+        create_react_agent = None
+
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_openai import ChatOpenAI
@@ -200,20 +213,32 @@ class AgentPipeline:
         agent_prompt = self._create_agent_prompt()
 
         try:
-            # Create agent
-            agent = create_react_agent(
-                llm=self.llm,
-                tools=self.tools,
-                prompt=agent_prompt
-            )
+            # Create agent - use create_react_agent if available, otherwise use initialize_agent
+            if create_react_agent is not None:
+                agent = create_react_agent(
+                    llm=self.llm,
+                    tools=self.tools,
+                    prompt=agent_prompt
+                )
 
-            agent_executor = AgentExecutor(
-                agent=agent,
-                tools=self.tools,
-                verbose=True,
-                handle_parsing_errors=True,
-                max_iterations=10
-            )
+                agent_executor = AgentExecutor(
+                    agent=agent,
+                    tools=self.tools,
+                    verbose=True,
+                    handle_parsing_errors=True,
+                    max_iterations=10
+                )
+            else:
+                # Fallback to initialize_agent for older LangChain versions
+                logger.info("Using initialize_agent (fallback)")
+                agent_executor = initialize_agent(
+                    tools=self.tools,
+                    llm=self.llm,
+                    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+                    verbose=True,
+                    handle_parsing_errors=True,
+                    max_iterations=10
+                )
 
             # Construct task for agent
             task = self._construct_agent_task(
