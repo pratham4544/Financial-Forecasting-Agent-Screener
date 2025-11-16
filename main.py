@@ -1,88 +1,67 @@
-from fastapi import FastAPI
+# app.py
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
+import logging
 
-
-# Import your entire raw pipeline
 from research.raw_code import (
     download_pdfs,
     create_vector_store,
     user_query_answer,
     current_market_price,
-    vector_store
+    
 )
-# ---------------------------
-app = FastAPI()
+import research.raw_code as pipeline
 
-# ---------------------------
-# Request models
-# ---------------------------
+
+logger = logging.getLogger(__name__)
+app = FastAPI(title="TCS Financial Forecasting Agent")
 
 class LoadRequest(BaseModel):
     url: str
 
-class QuestionRequest(BaseModel):
+class AskRequest(BaseModel):
     question: str
 
-
-# ---------------------------
-# API ENDPOINTS
-# ---------------------------
-
 @app.post("/load")
-def load_data(req: LoadRequest):
-    """
-    1. Downloads PDFs
-    2. Creates vector store
-    """
-    global vector_store
-
-    msg = download_pdfs(req.url)
-    vector_store = create_vector_store(req.url)
+def load_endpoint(req: LoadRequest):
+    msg = pipeline.download_pdfs(req.url)
+    pipeline.create_vector_store(req.url)
 
     return {
         "status": "success",
         "message": msg,
-        "vector_store_ready": vector_store is not None
+        "vector_store_ready": pipeline.vector_store is not None
     }
+
 
 
 @app.post("/ask")
-def ask_question(req: QuestionRequest):
-    """
-    Runs RAG + LLM chain and returns JSON output.
-    """
-    if vector_store is None:
-        return {"error": "Vector store not ready. Call /load first."}
+def ask_endpoint(req: AskRequest):
+    if pipeline.vector_store is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Vector store not initialized. Please load documents first."
+        )
 
-    response, chunks = user_query_answer(req.question)
-
-    return {
-        "answer": response,
-        "chunks_used": len(chunks)
-    }
+    answer, docs = pipeline.user_query_answer(req.question)
+    return {"answer": answer, "chunks_used": len(docs)}
 
 
 @app.get("/price")
-def get_price(url: str):
-    """
-    Extract stock symbol from URL and return live market price.
-    """
-    try:
-        price = current_market_price(url)
-        return {"stock_url": url, "price": price}
-    except Exception as e:
-        return {"error": str(e)}
+def price_endpoint(url: str):
+    price = pipeline.current_market_price(url)
+    return {"url": url, "price": price}
+
+@app.on_event("startup")
+def load_index():
+    pipeline.load_existing_vector_store()
+
 
 
 @app.get("/")
-def home():
-    return {"message": "TCS AI Financial Analysis Agent is running!"}
-
-
-# ---------------------------
-# RUN API
-# ---------------------------
+def root():
+    return {"message": "TCS Financial Forecasting Agent running."}
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
