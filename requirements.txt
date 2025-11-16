@@ -1,16 +1,40 @@
-fastapi
-uvicorn[standard]
-requests
-beautifulsoup4
-pymysql
-sqlalchemy
-pydantic
-langchain
-langchain-community
-langchain-core
-langchain-groq
-# sentence-transformers
-faiss-cpu
-pdfminer.six
-PyPDF2
-nse-live-stocks
+# FastAPI and Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Database
+pymysql>=1.1.0
+sqlalchemy>=2.0.0
+
+# Data Validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Web Scraping and Requests
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# PDF Processing
+pdfminer.six>=20221105
+PyPDF2>=3.0.0
+
+# LangChain and AI
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-core>=0.1.0
+langchain-openai>=0.0.2
+langchain-groq>=0.0.1
+
+# Embeddings and Vector Store
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+
+# Market Data
+nse-live-stocks>=1.0.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Logging and Utilities
+python-json-logger>=2.0.7
