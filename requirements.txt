@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+requests
+beautifulsoup4
+pymysql
+sqlalchemy
+pydantic
+langchain
+openai
+sentence-transformers
+faiss-cpu
+pdfminer.six
+nse-live-stocks
+python-multipart
