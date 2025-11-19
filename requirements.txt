@@ -1,5 +1,5 @@
 streamlit
-langchain-unstructured[local]"
+"langchain-unstructured[local]"
 
 # LangChain ecosystem (fixed)
 langchain==1.0.8
