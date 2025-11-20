@@ -341,33 +341,74 @@ def create_chunks(DOWNLOAD_DIR):
 
 def pdf_loader_without_ocr(DOWNLOAD_DIR):
     
-    file_path = []
+    file_paths = []
 
     # collect full paths to PDFs in DOWNLOAD_DIR
     for fname in os.listdir(DOWNLOAD_DIR):
         if fname.lower().endswith(".pdf"):
-            file_path.append(os.path.join(DOWNLOAD_DIR, fname))
+            file_paths.append(os.path.join(DOWNLOAD_DIR, fname))
         
-    print(f'Length of Files in Folder is {len(file_path)}')
+    print(f'Length of Files in Folder is {len(file_paths)}')
+
+    if not file_paths:
+        raise ValueError(f"No PDF files found in {DOWNLOAD_DIR}")
+
+    all_docs = []
+    failed_files = []
+    
+    # Load each PDF file separately with error handling
+    for file_path in file_paths:
+        file_name = os.path.basename(file_path)
+        
+        # Try PyPDFLoader first
+        try:
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
+            all_docs.extend(docs)
+            print(f'✅ Loaded {len(docs)} pages from {file_name} (PyPDF)')
+            continue
+        except Exception as e:
+            print(f'⚠️ PyPDFLoader failed for {file_name}: {str(e)}')
+        
+        # Fallback to PDFMinerLoader if PyPDFLoader fails
+        try:
+            print(f'   🔄 Trying PDFMinerLoader for {file_name}...')
+            loader = PDFMinerLoader(file_path)
+            docs = loader.load()
+            all_docs.extend(docs)
+            print(f'✅ Loaded {len(docs)} pages from {file_name} (PDFMiner)')
+            continue
+        except Exception as e:
+            print(f'⚠️ PDFMinerLoader also failed for {file_name}: {str(e)}')
+            failed_files.append(file_name)
+
+    if failed_files:
+        print(f'\n⚠️ Warning: {len(failed_files)} file(s) could not be loaded with any method:')
+        for f in failed_files:
+            print(f'   - {f}')
+        print(f'Successfully loaded {len(file_paths) - len(failed_files)} out of {len(file_paths)} files')
+    
+    if not all_docs:
+        raise ValueError(f"No documents could be loaded from {DOWNLOAD_DIR}. All files failed.")
 
     try:
-        if not file_path:
-            raise ValueError(f"No PDF files found in {DOWNLOAD_DIR}")
-
-        loader =PyPDFLoader(file_path)
-        docs = loader.load()
-
-        chunks = text_splitter.split_documents(docs)
-        print(f'Total length of chunks stored into db is {len(chunks)}')
-
+        chunks = text_splitter.split_documents(all_docs)
+        print(f'✅ Total length of chunks stored into db is {len(chunks)}')
     except Exception as e:
-        print(f'Error processing files: {e}')
+        print(f'❌ Error splitting documents: {e}')
+        chunks = []
         
     return chunks
 
 def load_tcs_faiss_index(url, path='faiss_index_tcs'):
     if url == 'https://www.screener.in/company/TCS/consolidated/#documents':
-        vector_store = FAISS.load_local(path,embeddings=embeddings_model)
+        vector_store = FAISS.load_local(
+            path,
+            embeddings=embeddings_model,
+            allow_dangerous_deserialization=True
+        )
+        return vector_store
+    return None
     return vector_store
 
 def create_pdf_vector_stores(chunks):

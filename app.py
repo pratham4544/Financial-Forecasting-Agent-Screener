@@ -61,6 +61,8 @@ if 'processing_complete' not in st.session_state:
     st.session_state.processing_complete = False
 if 'chat_history' not in st.session_state:
     st.session_state.chat_history = []
+if 'use_ocr' not in st.session_state:
+    st.session_state.use_ocr = False
 
 DOWNLOAD_DIR = "pdf_downloads"
 
@@ -73,6 +75,14 @@ with st.sidebar:
     st.header("⚙️ Configuration")
     
     st.subheader("📁 Document Processing")
+    
+    # OCR Configuration
+    st.session_state.use_ocr = st.checkbox(
+        "🔍 Use OCR for PDF extraction",
+        value=st.session_state.use_ocr,
+        help="Enable OCR for better text extraction (slower but more accurate). Disabled by default for high performance."
+    )
+    
     if st.button("🗑️ Reset Download Folder"):
         with st.spinner("Resetting download folder..."):
             reset_download_folder()
@@ -125,7 +135,7 @@ with tab1:
     with col1:
         url_input = st.text_input(
             "Enter Screener.in Company URL",
-            value="https://www.screener.in/company/GROWW/consolidated/",
+            value="https://www.screener.in/company/TCS/consolidated/#documents",
             placeholder="https://www.screener.in/company/COMPANY_NAME/consolidated/"
         )
     
@@ -136,54 +146,87 @@ with tab1:
     if process_btn and url_input:
         st.session_state.url = url_input
         
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+        # Check if TCS URL with prebuilt index
+        if url_input == 'https://www.screener.in/company/TCS/consolidated/#documents':
+            try:
+                status_text = st.empty()
+                progress_bar = st.progress(0)
+                
+                status_text.text("🔍 Detecting TCS URL - Loading prebuilt FAISS index...")
+                progress_bar.progress(30)
+                
+                vector_db = load_tcs_faiss_index(url_input)
+                progress_bar.progress(70)
+                
+                status_text.text("🌐 Adding URL content to vector database...")
+                vector_db = create_url_vector_store(url_input, vector_db)
+                progress_bar.progress(100)
+                
+                st.session_state.vector_db = vector_db
+                st.session_state.processing_complete = True
+                
+                status_text.text("✅ Processing complete!")
+                st.markdown('<div class="success-box">🎉 TCS prebuilt index loaded successfully! You can now query the database.</div>', unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"❌ Error loading TCS index: {str(e)}")
+                st.info("💡 Falling back to standard processing...")
         
-        try:
-            # Step 1: Reset folder
-            status_text.text("🗑️ Resetting download folder...")
-            reset_download_folder()
-            progress_bar.progress(10)
+        else:
+            # Standard processing for other companies
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
-            # Step 2: Download PDFs
-            status_text.text("📥 Downloading PDFs from Screener.in...")
-            run(url_input)
-            progress_bar.progress(30)
-            st.success("✅ PDFs downloaded successfully!")
-            
-            # Step 3: Delete old PDFs
-            status_text.text("🧹 Removing old PDFs (>1 year)...")
-            delete_result = delete_old_pdfs()
-            progress_bar.progress(40)
-            st.info(f"ℹ️ {delete_result}")
-            
-            # Step 4: Create chunks
-            status_text.text("✂️ Creating document chunks...")
-            chunks = create_chunks(DOWNLOAD_DIR)
-            progress_bar.progress(60)
-            st.success(f"✅ Created {len(chunks)} document chunks")
-            
-            # Step 5: Create PDF vector store
-            status_text.text("🗄️ Building vector database from PDFs...")
-            vector_db = create_pdf_vector_stores(chunks)
-            progress_bar.progress(80)
-            
-            # Step 6: Add URL content
-            status_text.text("🌐 Adding URL content to vector database...")
-            vector_db = create_url_vector_store(url_input, vector_db)
-            progress_bar.progress(95)
-            
-            # Step 7: Complete
-            st.session_state.vector_db = vector_db
-            st.session_state.processing_complete = True
-            progress_bar.progress(100)
-            status_text.text("✅ Processing complete!")
-            
-            st.markdown('<div class="success-box">🎉 All documents processed successfully! You can now query the database.</div>', unsafe_allow_html=True)
-            
-        except Exception as e:
-            st.error(f"❌ Error during processing: {str(e)}")
-            progress_bar.progress(0)
+            try:
+                # Step 1: Reset folder
+                status_text.text("🗑️ Resetting download folder...")
+                reset_download_folder()
+                progress_bar.progress(10)
+                
+                # Step 2: Download PDFs
+                status_text.text("📥 Downloading PDFs from Screener.in...")
+                run(url_input)
+                progress_bar.progress(30)
+                st.success("✅ PDFs downloaded successfully!")
+                
+                # Step 3: Delete old PDFs
+                status_text.text("🧹 Removing old PDFs (>1 year)...")
+                delete_result = delete_old_pdfs()
+                progress_bar.progress(40)
+                st.info(f"ℹ️ {delete_result}")
+                
+                # Step 4: Create chunks (with or without OCR)
+                if st.session_state.use_ocr:
+                    status_text.text("✂️ Creating document chunks with OCR (this may take longer)...")
+                    chunks = create_chunks(DOWNLOAD_DIR)
+                else:
+                    status_text.text("✂️ Creating document chunks without OCR (fast mode)...")
+                    chunks = pdf_loader_without_ocr(DOWNLOAD_DIR)
+                
+                progress_bar.progress(60)
+                st.success(f"✅ Created {len(chunks)} document chunks")
+                
+                # Step 5: Create PDF vector store
+                status_text.text("🗄️ Building vector database from PDFs...")
+                vector_db = create_pdf_vector_stores(chunks)
+                progress_bar.progress(80)
+                
+                # Step 6: Add URL content
+                status_text.text("🌐 Adding URL content to vector database...")
+                vector_db = create_url_vector_store(url_input, vector_db)
+                progress_bar.progress(95)
+                
+                # Step 7: Complete
+                st.session_state.vector_db = vector_db
+                st.session_state.processing_complete = True
+                progress_bar.progress(100)
+                status_text.text("✅ Processing complete!")
+                
+                st.markdown('<div class="success-box">🎉 All documents processed successfully! You can now query the database.</div>', unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"❌ Error during processing: {str(e)}")
+                progress_bar.progress(0)
     
     # Display processing status
     if st.session_state.processing_complete:
@@ -296,4 +339,4 @@ st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666;'>Built with Streamlit | Powered by LangChain & GROQ</div>",
     unsafe_allow_html=True
-)   
+)
