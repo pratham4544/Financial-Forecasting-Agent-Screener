@@ -2,6 +2,12 @@ import streamlit as st
 import os
 from research.raw import *
 import json
+from dotenv import load_dotenv
+load_dotenv()
+
+os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+os.environ['LANGCHAIN_API_KEY'] = os.getenv('LANGCHAIN_API_KEY')
+
 
 # Page configuration
 st.set_page_config(
@@ -290,4 +296,4 @@ st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666;'>Built with Streamlit | Powered by LangChain & GROQ</div>",
     unsafe_allow_html=True
-)
+)   

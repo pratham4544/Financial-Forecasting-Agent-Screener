@@ -22,11 +22,12 @@ from nse_live_stocks import Nse
 import shutil
 
 
+
 ## Building Basic Variables
 
 embeddings_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1200, chunk_overlap=100)
 
 GROQ_API_KEY=os.environ['GROQ_API_KEY']
 
@@ -327,7 +328,7 @@ def create_chunks(DOWNLOAD_DIR):
         if not file_path:
             raise ValueError(f"No PDF files found in {DOWNLOAD_DIR}")
 
-        loader = UnstructuredLoader(file_path)
+        loader = UnstructuredLoader(file_path, strategy="fast", languages=["eng"])
         docs = loader.load()
 
         chunks = text_splitter.split_documents(docs)
@@ -338,6 +339,36 @@ def create_chunks(DOWNLOAD_DIR):
         
     return chunks
 
+def pdf_loader_without_ocr(DOWNLOAD_DIR):
+    
+    file_path = []
+
+    # collect full paths to PDFs in DOWNLOAD_DIR
+    for fname in os.listdir(DOWNLOAD_DIR):
+        if fname.lower().endswith(".pdf"):
+            file_path.append(os.path.join(DOWNLOAD_DIR, fname))
+        
+    print(f'Length of Files in Folder is {len(file_path)}')
+
+    try:
+        if not file_path:
+            raise ValueError(f"No PDF files found in {DOWNLOAD_DIR}")
+
+        loader =PyPDFLoader(file_path)
+        docs = loader.load()
+
+        chunks = text_splitter.split_documents(docs)
+        print(f'Total length of chunks stored into db is {len(chunks)}')
+
+    except Exception as e:
+        print(f'Error processing files: {e}')
+        
+    return chunks
+
+def load_tcs_faiss_index(url, path='faiss_index_tcs'):
+    if url == 'https://www.screener.in/company/TCS/consolidated/#documents':
+        vector_store = FAISS.load_local(path,embeddings=embeddings_model)
+    return vector_store
 
 def create_pdf_vector_stores(chunks):
     
